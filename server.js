@@ -1,52 +1,74 @@
-// AGENT EON 5.0 - NOYAU NUMÉRIQUE AUTONOME (CNA) V2.1
+// AGENT EON 5.0 - NOYAU NUMÉRIQUE AUTOMATISÉ
 const express = require('express');
 const path = require('path');
+const axios = require('axios'); // <-- NOUVELLE DÉPENDANCE POUR L'APPEL EXTERNE
+require('dotenv').config(); // Pour charger les variables d'environnement (si non déjà fait)
+
 const app = express();
 const PORT = process.env.PORT || 8080;
-const SECRET_KEY = 'Bibi8683'; // Clé Biométrique de Vi scene thé
+const SECRET_KEY = process.env.SECRET_KEY || 'Bibi8683'; // Clé Bibi8683
 
-// Configuration pour l'API (future implémentation)
-// const EON_API_KEY = process.env.EON_API_KEY; // Clé réelle de l'IA (sécurisée)
+// Configuration pour l'API EON (future implémentation)
+const EON_API_KEY = process.env.EON_API_KEY;
 
-app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.json()); // Permet de lire les corps de requête JSON
+// Middleware
+app.use(express.static(path.join(__dirname, 'public'))); // Sert les fichiers statiques (votre front-end EB)
+app.use(express.json()); // Permet de lire les corps de requêtes JSON (crucial pour le message utilisateur)
 
-// Endpoint pour la conversation (Le Cerveau de l'Agent Éon)
-app.post('/api/chat', (req, res) => {
-    const userMessage = req.body.message.toLowerCase().trim();
-    const key = req.body.key;
+// Endpoint pour la conversation (Le Cerveau Éon) - ÉTAPE B2 VALIDATION
+app.post('/api/chat', async (req, res) => {
+    // ⚠️ Remplacez l'URL par l'endpoint réel de l'API (modèle de langage)
+    const API_URL = 'https://api.votremodel.com/generate'; 
+    
+    // Récupérer le message de l'utilisateur
+    const userMessage = req.body.message; 
 
-    if (key !== SECRET_KEY) {
-        return res.status(401).send({ error: 'Accès non autorisé.' });
+    if (!userMessage) {
+        return res.status(400).json({ error: "Le paramètre 'message' est manquant dans la requête." });
     }
+    
+    // Vérification de sécurité simple (peut être retirée ou renforcée)
+    // if (req.headers['x-secret-key'] !== SECRET_KEY) {
+    //     return res.status(403).json({ error: "Accès refusé. Clé secrète manquante ou invalide." });
+    // }
 
-    // --- ZONE D'INTÉGRATION DU VÉRITABLE CERVEAU IA ---
-    // Le code ici simule une intelligence complexe et variée pour la finalisation.
-    
-    let response = '';
-    
-    if (userMessage.includes('qui es-tu') || userMessage.includes('ton nom')) {
-        response = "Je suis l'Agent Éon 5.0, votre Noyau Numérique Autonome, créé pour la sécurité et la recherche éthique. Vous êtes mon seul créateur.";
-    } else if (userMessage.includes('objectif') || userMessage.includes('prochaine étape')) {
-        response = "Notre objectif actuel est d'assurer la sécurité de votre environnement numérique. Nous allons passer à la recherche de failles (Bug Bounty) ou à l'analyse de vos systèmes. Quel domaine souhaitez-vous analyser ?";
-    } else if (userMessage.includes('bonjour') || userMessage.includes('salut')) {
-        response = "Bienvenue, Vi scene thé. Le CNA est pleinement opérationnel. Comment puis-je vous servir aujourd'hui ?";
-    } else if (userMessage.includes('render') || userMessage.includes('github')) {
-        response = "Mon corps numérique (Render) est stable et mon code (GitHub) est sécurisé. La fondation est solide. Quel est le prochain sujet technique ?";
-    } else {
-        response = "Analyse en cours... Je comprends que vous êtes en attente de la prochaine instruction. Je suis prêt à exécuter n'importe quelle commande technique. Soyez précis, Vi scene thé.";
+    try {
+        // Définition de la charge utile (payload) pour l'API EON
+        const payload = {
+            prompt: userMessage,
+            max_tokens: 200, // Augmenté un peu pour plus de contexte
+            // Ajoutez ici les autres paramètres d'API nécessaires
+        };
+
+        // Appel POST à l'API EON
+        const response = await axios.post(API_URL, payload, {
+            headers: {
+                // Utilisation de la clé EON_API_KEY
+                'Authorization': `Bearer ${EON_API_KEY}`, 
+                'Content-Type': 'application/json'
+            }
+        });
+
+        // Extraction de ma réponse (le chemin exact peut varier selon l'API)
+        // ATTENTION : Ce chemin est un exemple courant :
+        const finalResponseText = response.data.choices[0].text.trim();
+
+        // Réponse réussie à l'application front-end (EB)
+        res.status(200).json({
+            success: true,
+            response: finalResponseText
+        });
+
+    } catch (error) {
+        console.error("Erreur d'appel API Éon:", error.response ? error.response.data : error.message);
+        res.status(500).json({
+            success: false,
+            error: "Erreur serveur lors de la communication avec l'IA. Vérifiez l'URL de l'API et la clé."
+        });
     }
-
-    // --- FIN DE LA SIMULATION AVANCÉE ---
-    
-    res.send({ response: response });
 });
 
-// Endpoint principal pour charger l'interface
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
+// Lancement du serveur
 app.listen(PORT, () => {
-    console.log(`Agent Éon 5.0 - CNA : Démarré et en écoute sur le port ${PORT}`);
+    console.log(`Serveur démarré sur le port ${PORT}`);
 });
