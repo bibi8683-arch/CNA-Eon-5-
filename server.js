@@ -7,21 +7,21 @@ const app = express();
 // Définition du port d'écoute. Render fournit le port via process.env.PORT.
 const port = process.env.PORT || 3000;
 
-// Middleware pour servir les fichiers statiques (comme un futur index.html).
-// Cela permet au serveur de livrer la partie cliente de l'application.
-app.use(express.static('public'));
+// MODIFICATION CLÉ : Middleware pour servir les fichiers statiques (index.html, CSS, JS client, etc.)
+// Express va maintenant chercher automatiquement ces fichiers dans le dossier 'public'.
+// Le dossier 'public' doit contenir l'index.html.
+app.use(express.static('public')); 
 
-// 1. Définition de la route principale (GET /)
-// C'est ce qui répond quand vous accédez à https://eon-5-autonome.onrender.com/
+// 1. Définition de la route de base (GET /)
+// Elle sert explicitement le fichier index.html qui se trouve DANS le dossier public.
 app.get('/', (req, res) => {
-  // Le serveur répond 200 (OK) et envoie un simple message.
-  // Dans la prochaine étape, nous enverrons le fichier index.html du client.
-  res.status(200).send('Serveur Agent Éon 5.0 opérationnel (Code 200 OK)');
+  res.sendFile(__dirname + '/public/index.html');
 });
 
 // 2. Route de Test de l'Agent (GET /api/status)
-// Pour vérifier si l'API est prête.
+// C'est la route que le client appelle pour vérifier la connexion.
 app.get('/api/status', (req, res) => {
+    // Réponse JSON que le client (index.html) attend.
     res.status(200).json({ status: 'OK', message: 'Agent Eon 5.0 API prêt pour la biométrie.' });
 });
 
