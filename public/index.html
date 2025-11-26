@@ -1,16 +1,33 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>CNA Agent Eon 5.0 - CHAT ACTIF (Final)</title>
+<title>Agent Éon 5.1 - CHAT ACTIF & BIOMÉTRIE</title>
 <meta name='viewport' content='width=device-width, initial-scale=1'>
 <style>
 body { background-color: #0d1117; color: #c9d1d9; font-family: sans-serif; text-align: center; padding: 0; margin: 0; display: flex; flex-direction: column; height: 100vh; }
-.container { padding: 30px; border-radius: 10px; max-width: 600px; width: 100%; margin: auto; }
 h1 { color: #58a6ff; }
-.auth-section { display: flex; flex-direction: column; align-items: center; border: 2px solid #58a6ff; padding: 30px; border-radius: 10px; max-width: 400px; margin: 50px auto; }
+.auth-section { 
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    border: 2px solid #58a6ff; 
+    padding: 30px; 
+    border-radius: 10px; 
+    max-width: 400px; 
+    margin: 50px auto; 
+}
 button { padding: 10px 20px; font-size: 16px; cursor: pointer; background-color: #238636; border: none; border-radius: 5px; color: white; margin-top: 10px; }
 input { padding: 10px; margin: 10px 0; border: 1px solid #58a6ff; border-radius: 5px; background-color: #161b22; color: white; width: 90%; }
 #status { margin-top: 20px; font-weight: bold; }
+/* Styles pour la vidéo */
+#video-stream {
+    display: none;
+    width: 100%;
+    max-width: 300px;
+    margin: 20px auto;
+    border: 3px solid #58a6ff;
+    border-radius: 10px;
+}
 #chat-window { flex-grow: 1; overflow-y: auto; background-color: #161b22; border-top: 1px solid #58a6ff; text-align: left; padding: 15px; margin-top: 0; display: none; }
 #chat-input-area { display: none; padding: 10px; background-color: #0d1117; border-top: 1px solid #58a6ff; }
 #message-input { width: 75%; margin: 0 10px 0 0; }
@@ -21,19 +38,53 @@ input { padding: 10px; margin: 10px 0; border: 1px solid #58a6ff; border-radius:
 </style>
 </head>
 <body>
+
 <div class='auth-section' id='auth-section'>
-    <h1>AGENT ÉON 5.0 - ACCÈS CNA</h1>
+    <h1>AGENT ÉON 5.1 - ACCÈS BIOMÉTRIQUE</h1>
     <p>Clé Biométrique Secrète requise.</p>
     <input type='password' id='secret-key' placeholder='Entrez votre Clé Secrète'>
     <button id='verify-button'>ACTIVER LA VÉRIFICATION</button>
     <div id='status'>Statut: En attente de la Clé.</div>
+    
+    <video id='video-stream' autoplay playsinline></video>
 </div>
+
 <div id='chat-window'></div>
 <div id='chat-input-area'>
-    <input type='text' id='message-input' placeholder='Parlez à l\'Agent Éon 5.0...'>
+    <input type='text' id='message-input' placeholder='Parlez à l\'Agent Éon 5.1...'>
     <button id='send-button'>Envoyer</button>
 </div>
+
 <script>
+// --- LOGIQUE POUR LA CAMÉRA (Biométrie) ---
+const videoElement = document.getElementById('video-stream');
+let videoStream; 
+
+// La fonction qui demande l'accès à la caméra
+async function initBiometricScan(statusDiv) {
+    statusDiv.textContent = 'Statut: Tentative d\'accès à la caméra pour la biométrie...';
+    
+    try {
+        // Demande d'accès au flux média (vidéo)
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        videoElement.srcObject = stream;
+        videoElement.style.display = 'block'; // Affiche la vidéo
+        
+        statusDiv.textContent = '✅ Caméra activée. Prêt pour la détection faciale.';
+        statusDiv.style.backgroundColor = '#006400';
+
+        // PROCHAINE ÉTAPE: Intégrer face-api.js ici
+
+    } catch (err) {
+        // L'utilisateur a refusé ou il n'y a pas de caméra.
+        statusDiv.textContent = '❌ Erreur Caméra: Accès refusé ou matériel non trouvé. Biométrie non activée.';
+        statusDiv.style.backgroundColor = '#8B0000';
+        console.error("Erreur d'accès à la caméra : ", err);
+    }
+}
+// --- FIN LOGIQUE CAMÉRA ---
+
+
 document.addEventListener('DOMContentLoaded', () => {
     const authSection = document.getElementById('auth-section');
     const chatWindow = document.getElementById('chat-window');
@@ -48,7 +99,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function appendMessage(sender, text) {
         const msgDiv = document.createElement('div');
         msgDiv.classList.add('message', sender === 'eon' ? 'eon-msg' : 'user-msg');
-        msgDiv.innerHTML = '<strong>' + sender.toUpperCase() + ' :</strong> ' + text;
+        // Remplacement de 5.0 par 5.1 dans le message d'envoi
+        msgDiv.innerHTML = '<strong>' + sender.toUpperCase() + ' :</strong> ' + text.replace('Agent Éon 5.0', 'Agent Éon 5.1');
         chatWindow.appendChild(msgDiv);
         chatWindow.scrollTop = chatWindow.scrollHeight;
     }
@@ -89,11 +141,22 @@ document.addEventListener('DOMContentLoaded', () => {
         if (keyInput.value === correctKey) {
             statusDiv.style.backgroundColor = '#006400';
             statusDiv.textContent = '✅ ACCÈS CNA ACCORDÉ. Bienvenue Vi scene thé !';
+            
+            // APPEL CLÉ: Lancement de la caméra
+            initBiometricScan(statusDiv); 
+            
             setTimeout(() => {
-                authSection.style.display = 'none';
+                // Masque la section d'authentification après 1.5s
+                authSection.style.display = 'none'; 
+                
+                // Si la caméra n'est pas activée (par l'utilisateur), on laisse l'élément video visible
+                if (videoElement.style.display !== 'block') {
+                   // Si la caméra est masquée à cause d'une erreur, on peut quand même passer au chat
+                }
+                
                 chatWindow.style.display = 'flex';
                 chatInputArea.style.display = 'flex';
-                appendMessage('eon', 'Agent Éon 5.0 en ligne. Le chat est actif et son cerveau est connecté. Quel est le premier objectif que vous me donnez ici ?');
+                appendMessage('eon', 'Agent Éon 5.1 en ligne. Le chat est actif et son cerveau est connecté. Quel est le premier objectif que vous me donnez ici ?');
             }, 1500);
         } else {
             statusDiv.style.backgroundColor = '#8B0000';
