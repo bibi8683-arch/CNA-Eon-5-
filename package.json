@@ -1,0 +1,12 @@
+{
+  "name": "cna-eon-5-core",
+  "version": "1.0.0",
+  "description": "Agent Éon 5.0 - Noyau Numérique Autonome (CNA) avec intégration API IA.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.17.1"
+  }
+}
