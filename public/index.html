@@ -1,159 +1,148 @@
-<!DOCTYPE html>
-<html>
-<head>
-<title>Agent Éon 5.1 - CHAT ACTIF & BIOMÉTRIE</title>
-<meta name='viewport' content='width=device-width, initial-scale=1'>
-<style>
-body { background-color: #0d1117; color: #c9d1d9; font-family: sans-serif; text-align: center; padding: 0; margin: 0; display: flex; flex-direction: column; height: 100vh; }
-h1 { color: #58a6ff; }
-.auth-section { 
-    display: flex; 
-    flex-direction: column; 
-    align-items: center; 
-    border: 2px solid #58a6ff; 
-    padding: 30px; 
-    border-radius: 10px; 
-    max-width: 400px; 
-    margin: 50px auto; 
-}
-button { padding: 10px 20px; font-size: 16px; cursor: pointer; background-color: #238636; border: none; border-radius: 5px; color: white; margin-top: 10px; }
-input { padding: 10px; margin: 10px 0; border: 1px solid #58a6ff; border-radius: 5px; background-color: #161b22; color: white; width: 90%; }
-#status { margin-top: 20px; font-weight: bold; }
-/* Styles pour la vidéo */
-#video-stream {
-    display: none;
-    width: 100%;
-    max-width: 300px;
-    margin: 20px auto;
-    border: 3px solid #58a6ff;
-    border-radius: 10px;
-}
-#chat-window { flex-grow: 1; overflow-y: auto; background-color: #161b22; border-top: 1px solid #58a6ff; text-align: left; padding: 15px; margin-top: 0; display: none; }
-#chat-input-area { display: none; padding: 10px; background-color: #0d1117; border-top: 1px solid #58a6ff; }
-#message-input { width: 75%; margin: 0 10px 0 0; }
-#send-button { width: 20%; margin: 0; background-color: #58a6ff; }
-.message { margin-bottom: 10px; }
-.eon-msg { color: #58a6ff; }
-.user-msg { color: #238636; }
-</style>
-</head>
-<body>
-
-<div class='auth-section' id='auth-section'>
-    <h1>AGENT ÉON 5.1 - ACCÈS BIOMÉTRIQUE</h1>
-    <p>Clé Biométrique Secrète requise.</p>
-    <input type='password' id='secret-key' placeholder='Entrez votre Clé Secrète'>
-    <button id='verify-button'>ACTIVER LA VÉRIFICATION</button>
-    <div id='status'>Statut: En attente de la Clé.</div>
-    
-    <video id='video-stream' autoplay playsinline></video>
-</div>
-
-<div id='chat-window'></div>
-<div id='chat-input-area'>
-    <input type='text' id='message-input' placeholder='Parlez à l\'Agent Éon 5.1...'>
-    <button id='send-button'>Envoyer</button>
-</div>
-
+<script src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
 <script>
-// --- LOGIQUE POUR LA CAMÉRA (Biométrie) ---
-const videoElement = document.getElementById('video-stream');
-let videoStream; 
+// --- CONTRÔLE DE L'AGENT ÉON 5.1 ---
 
-// La fonction qui demande l'accès à la caméra
-async function initBiometricScan(statusDiv) {
-    statusDiv.textContent = 'Statut: Tentative d\'accès à la caméra pour la biométrie...';
-    
+// Éléments DOM principaux
+const videoElement = document.getElementById('video-stream');
+const authSection = document.getElementById('auth-section');
+const chatWindow = document.getElementById('chat-window');
+const chatInputArea = document.getElementById('chat-input-area');
+const statusDiv = document.getElementById('status');
+const keyInput = document.getElementById('secret-key');
+const verifyButton = document.getElementById('verify-button');
+const sendButton = document.getElementById('send-button');
+const messageInput = document.getElementById('message-input');
+const correctKey = 'Bibi8683'; // Clé secrète (à remplacer par la biométrie plus tard)
+
+let faceDetectionInterval; // Intervalle pour la boucle de détection
+
+// Fonction utilitaire pour ajouter des messages au chat
+function appendMessage(sender, text) {
+    const msgDiv = document.createElement('div');
+    msgDiv.classList.add('message', sender === 'eon' ? 'eon-msg' : 'user-msg');
+    msgDiv.innerHTML = '<strong>' + sender.toUpperCase() + ' :</strong> ' + text.replace('Agent Éon 5.0', 'Agent Éon 5.1');
+    chatWindow.appendChild(msgDiv);
+    chatWindow.scrollTop = chatWindow.scrollHeight;
+}
+
+// Fonction pour gérer l'envoi de messages au serveur (/api/chat)
+async function sendMessage() {
+    const text = messageInput.value.trim();
+    if (text === '') return;
+
+    appendMessage('user', text);
+    messageInput.value = '';
+
     try {
-        // Demande d'accès au flux média (vidéo)
+        const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                message: text,
+                key: correctKey // Envoie la clé pour l'authentification côté serveur
+            })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            appendMessage('eon', data.response);
+        } else {
+            appendMessage('eon', "ERREUR: Échec de la communication avec le Noyau CNA (Statut non OK).");
+        }
+    } catch (error) {
+        console.error('Erreur lors de la conversation:', error);
+        appendMessage('eon', "ERREUR: Impossible de contacter le serveur CNA. Vérifiez votre connexion.");
+    }
+}
+
+
+// Fonction pour démarrer la détection faciale (Biométrie)
+async function startFaceDetection(statusDiv) {
+    statusDiv.textContent = 'Statut: Chargement des modèles IA...';
+
+    try {
+        // 1. Chargement des modèles depuis le dossier 'public/models'
+        await Promise.all([
+            faceapi.nets.tinyFaceDetector.loadFromUri('/models'),
+            faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
+            faceapi.nets.faceRecognitionNet.loadFromUri('/models')
+        ]);
+
+        statusDiv.textContent = 'Statut: Modèles chargés. Démarrage de la vidéo...';
+
+        // 2. Initialisation de la caméra
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         videoElement.srcObject = stream;
-        videoElement.style.display = 'block'; // Affiche la vidéo
-        
-        statusDiv.textContent = '✅ Caméra activée. Prêt pour la détection faciale.';
-        statusDiv.style.backgroundColor = '#006400';
+        videoElement.style.display = 'block';
 
-        // PROCHAINE ÉTAPE: Intégrer face-api.js ici
+        videoElement.addEventListener('play', () => {
+            statusDiv.textContent = 'Détection active. Orientez votre visage vers la caméra.';
+            statusDiv.style.backgroundColor = '#58a6ff'; 
+
+            // Création d'un canvas pour dessiner les boîtes
+            const canvas = faceapi.createCanvasFromMedia(videoElement);
+            videoElement.parentNode.insertBefore(canvas, videoElement.nextSibling);
+
+            const displaySize = { width: videoElement.offsetWidth, height: videoElement.offsetHeight };
+            faceapi.matchDimensions(canvas, displaySize);
+
+            // 3. Boucle de détection
+            faceDetectionInterval = setInterval(async () => {
+                const detections = await faceapi.detectAllFaces(videoElement, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks();
+                
+                const resizedDetections = faceapi.resizeResults(detections, displaySize);
+                canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+                
+                faceapi.draw.drawDetections(canvas, resizedDetections);
+                
+                if (resizedDetections.length > 0) {
+                    // Si un visage est détecté
+                    statusDiv.textContent = "✅ VISAGE DÉTECTÉ! Authentification en cours...";
+                    // PLUS TARD : Ici, vous auriez la logique de vérification d'identité
+                } else {
+                    statusDiv.textContent = "❌ Pas de visage détecté. Veuillez vous centrer.";
+                }
+            }, 100); 
+        });
 
     } catch (err) {
-        // L'utilisateur a refusé ou il n'y a pas de caméra.
-        statusDiv.textContent = '❌ Erreur Caméra: Accès refusé ou matériel non trouvé. Biométrie non activée.';
+        // Erreur si l'accès à la caméra est refusé ou si les modèles ne sont pas trouvés
+        statusDiv.textContent = '❌ Échec Biométrie: Accès refusé ou modèles IA manquants (public/models).';
         statusDiv.style.backgroundColor = '#8B0000';
-        console.error("Erreur d'accès à la caméra : ", err);
+        console.error("Erreur de détection faciale : ", err);
     }
 }
-// --- FIN LOGIQUE CAMÉRA ---
 
 
+// Fonction principale appelée par l'Event Listener du bouton de vérification
+function initBiometricScan(statusDiv) {
+    if (faceDetectionInterval) clearInterval(faceDetectionInterval);
+    startFaceDetection(statusDiv);
+}
+
+
+// --- DÉMARRAGE DE L'APPLICATION ---
 document.addEventListener('DOMContentLoaded', () => {
-    const authSection = document.getElementById('auth-section');
-    const chatWindow = document.getElementById('chat-window');
-    const chatInputArea = document.getElementById('chat-input-area');
-    const statusDiv = document.getElementById('status');
-    const keyInput = document.getElementById('secret-key');
-    const verifyButton = document.getElementById('verify-button');
-    const sendButton = document.getElementById('send-button');
-    const messageInput = document.getElementById('message-input');
-    const correctKey = 'Bibi8683'; // Votre clé secrète
+    // 1. AJOUT DE L'ÉLÉMENT VIDÉO DANS L'HTML
+    // (Ajouté ici car il doit exister avant les scripts)
+    // NOTE : L'élément <video id='video-stream' autoplay playsinline></video>
+    // doit être présent dans le corps HTML pour que ce script fonctionne.
+    // Il est placé dans la section auth-section dans le code HTML complet.
 
-    function appendMessage(sender, text) {
-        const msgDiv = document.createElement('div');
-        msgDiv.classList.add('message', sender === 'eon' ? 'eon-msg' : 'user-msg');
-        // Remplacement de 5.0 par 5.1 dans le message d'envoi
-        msgDiv.innerHTML = '<strong>' + sender.toUpperCase() + ' :</strong> ' + text.replace('Agent Éon 5.0', 'Agent Éon 5.1');
-        chatWindow.appendChild(msgDiv);
-        chatWindow.scrollTop = chatWindow.scrollHeight;
-    }
-
-    async function sendMessage() {
-        const text = messageInput.value.trim();
-        if (text === '') return;
-
-        appendMessage('user', text);
-        messageInput.value = '';
-
-        try {
-            const response = await fetch('/api/chat', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    message: text,
-                    key: correctKey // Envoie la clé pour l'authentification côté serveur
-                })
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                appendMessage('eon', data.response);
-            } else {
-                appendMessage('eon', "ERREUR: Échec de la communication avec le Noyau CNA.");
-            }
-        } catch (error) {
-            console.error('Erreur lors de la conversation:', error);
-            appendMessage('eon', "ERREUR: Impossible de contacter le serveur CNA.");
-        }
-    }
-
-    // Event Listeners
+    // 2. Event Listeners
     verifyButton.addEventListener('click', () => {
         if (keyInput.value === correctKey) {
             statusDiv.style.backgroundColor = '#006400';
             statusDiv.textContent = '✅ ACCÈS CNA ACCORDÉ. Bienvenue Vi scene thé !';
             
-            // APPEL CLÉ: Lancement de la caméra
+            // Lancement de la détection faciale
             initBiometricScan(statusDiv); 
             
             setTimeout(() => {
-                // Masque la section d'authentification après 1.5s
+                // Masque l'authentification et passe au chat
                 authSection.style.display = 'none'; 
-                
-                // Si la caméra n'est pas activée (par l'utilisateur), on laisse l'élément video visible
-                if (videoElement.style.display !== 'block') {
-                   // Si la caméra est masquée à cause d'une erreur, on peut quand même passer au chat
-                }
-                
                 chatWindow.style.display = 'flex';
                 chatInputArea.style.display = 'flex';
                 appendMessage('eon', 'Agent Éon 5.1 en ligne. Le chat est actif et son cerveau est connecté. Quel est le premier objectif que vous me donnez ici ?');
@@ -170,5 +159,3 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 </script>
-</body>
-</html>
