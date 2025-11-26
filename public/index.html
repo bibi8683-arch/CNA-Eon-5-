@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>CNA Agent Eon 5.0 - CHAT ACTIF (Final)</title>
+<meta name='viewport' content='width=device-width, initial-scale=1'>
+<style>
+body { background-color: #0d1117; color: #c9d1d9; font-family: sans-serif; text-align: center; padding: 0; margin: 0; display: flex; flex-direction: column; height: 100vh; }
+.container { padding: 30px; border-radius: 10px; max-width: 600px; width: 100%; margin: auto; }
+h1 { color: #58a6ff; }
+.auth-section { display: flex; flex-direction: column; align-items: center; border: 2px solid #58a6ff; padding: 30px; border-radius: 10px; max-width: 400px; margin: 50px auto; }
+button { padding: 10px 20px; font-size: 16px; cursor: pointer; background-color: #238636; border: none; border-radius: 5px; color: white; margin-top: 10px; }
+input { padding: 10px; margin: 10px 0; border: 1px solid #58a6ff; border-radius: 5px; background-color: #161b22; color: white; width: 90%; }
+#status { margin-top: 20px; font-weight: bold; }
+#chat-window { flex-grow: 1; overflow-y: auto; background-color: #161b22; border-top: 1px solid #58a6ff; text-align: left; padding: 15px; margin-top: 0; display: none; }
+#chat-input-area { display: none; padding: 10px; background-color: #0d1117; border-top: 1px solid #58a6ff; }
+#message-input { width: 75%; margin: 0 10px 0 0; }
+#send-button { width: 20%; margin: 0; background-color: #58a6ff; }
+.message { margin-bottom: 10px; }
+.eon-msg { color: #58a6ff; }
+.user-msg { color: #238636; }
+</style>
+</head>
+<body>
+<div class='auth-section' id='auth-section'>
+    <h1>AGENT ÉON 5.0 - ACCÈS CNA</h1>
+    <p>Clé Biométrique Secrète requise.</p>
+    <input type='password' id='secret-key' placeholder='Entrez votre Clé Secrète'>
+    <button id='verify-button'>ACTIVER LA VÉRIFICATION</button>
+    <div id='status'>Statut: En attente de la Clé.</div>
+</div>
+<div id='chat-window'></div>
+<div id='chat-input-area'>
+    <input type='text' id='message-input' placeholder='Parlez à l\'Agent Éon 5.0...'>
+    <button id='send-button'>Envoyer</button>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const authSection = document.getElementById('auth-section');
+    const chatWindow = document.getElementById('chat-window');
+    const chatInputArea = document.getElementById('chat-input-area');
+    const statusDiv = document.getElementById('status');
+    const keyInput = document.getElementById('secret-key');
+    const verifyButton = document.getElementById('verify-button');
+    const sendButton = document.getElementById('send-button');
+    const messageInput = document.getElementById('message-input');
+    const correctKey = 'Bibi8683'; // Votre clé secrète
+
+    function appendMessage(sender, text) {
+        const msgDiv = document.createElement('div');
+        msgDiv.classList.add('message', sender === 'eon' ? 'eon-msg' : 'user-msg');
+        msgDiv.innerHTML = '<strong>' + sender.toUpperCase() + ' :</strong> ' + text;
+        chatWindow.appendChild(msgDiv);
+        chatWindow.scrollTop = chatWindow.scrollHeight;
+    }
+
+    async function sendMessage() {
+        const text = messageInput.value.trim();
+        if (text === '') return;
+
+        appendMessage('user', text);
+        messageInput.value = '';
+
+        try {
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    message: text,
+                    key: correctKey // Envoie la clé pour l'authentification côté serveur
+                })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                appendMessage('eon', data.response);
+            } else {
+                appendMessage('eon', "ERREUR: Échec de la communication avec le Noyau CNA.");
+            }
+        } catch (error) {
+            console.error('Erreur lors de la conversation:', error);
+            appendMessage('eon', "ERREUR: Impossible de contacter le serveur CNA.");
+        }
+    }
+
+    // Event Listeners
+    verifyButton.addEventListener('click', () => {
+        if (keyInput.value === correctKey) {
+            statusDiv.style.backgroundColor = '#006400';
+            statusDiv.textContent = '✅ ACCÈS CNA ACCORDÉ. Bienvenue Vi scene thé !';
+            setTimeout(() => {
+                authSection.style.display = 'none';
+                chatWindow.style.display = 'flex';
+                chatInputArea.style.display = 'flex';
+                appendMessage('eon', 'Agent Éon 5.0 en ligne. Le chat est actif et son cerveau est connecté. Quel est le premier objectif que vous me donnez ici ?');
+            }, 1500);
+        } else {
+            statusDiv.style.backgroundColor = '#8B0000';
+            statusDiv.textContent = 'Statut: Clé Invalide. Accès Refusé.';
+        }
+    });
+    
+    sendButton.addEventListener('click', sendMessage);
+    messageInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') sendMessage();
+    });
+});
+</script>
+</body>
+</html>
